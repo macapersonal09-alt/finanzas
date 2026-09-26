@@ -276,9 +276,9 @@
       '<div class="monto num ' + l.clase + '">' + dinero(m.monto) + '</div></div>';
 
     if (p.paso === 'cats') {
+      h += '<input class="nota" data-nota="' + m.id + '" placeholder="' + (p.tipoCat === 'INGRESO' ? '¿De quién? Luego toca la categoría' : '¿A quién? Luego toca la categoría') + '" value="' + esc(p.nota || '') + '">';
       h += '<div class="pregunta">' + (p.tipoCat === 'INGRESO' ? '¿Qué tipo de ingreso?' : '¿En qué se fue?') + '</div>';
       h += botonesCats(m, p.tipoCat);
-      h += '<input class="nota" data-nota="' + m.id + '" placeholder="' + (p.tipoCat === 'INGRESO' ? '¿De quién? (opcional)' : '¿A quién o qué fue? (opcional)') + '" value="' + esc(p.nota || '') + '">';
       h += '<div class="pie-tarjeta"><button class="btn" data-acc="atras" data-id="' + m.id + '">← Atrás</button></div>';
     } else if (p.paso === 'bolsas') {
       h += '<div class="pregunta">' + (md === 'entra' ? '¿De cuál de tus cuentas vino?' : '¿A cuál de tus cuentas fue?') + '</div>';
