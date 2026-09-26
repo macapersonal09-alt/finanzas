@@ -90,6 +90,7 @@ nav#nav button.mas span { background: var(--esmeralda); color: #fff; width: 30px
 .mov-cab .monto.sale { color: var(--rubi); }
 .mov-cab .monto.entra { color: var(--esmeralda); }
 .mov-cab .monto.pasa { color: var(--zafiro); }
+.tarjeta.resaltada { border: 2px solid var(--esmeralda); }
 .comercio { font-weight: 600; word-break: break-word; }
 .meta { font-size: 13px; color: var(--suave); margin-top: 2px; }
 .pregunta { margin: 12px 0 8px; font-size: 14px; color: var(--suave); }

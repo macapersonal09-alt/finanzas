@@ -1,5 +1,5 @@
 /* =====================================================================
- * Finanzas Personales · app.js · v1 · 26-sep-2026
+ * Finanzas Personales · app.js · v1.2 · 26-sep-2026
  * Vistas: inicio · bandeja · movimientos · nuevo gasto · cuadrar saldo
  * Datos: Supabase (tablas bolsas, categorias, reglas, movimientos)
  * Regla de fechas: NUNCA toISOString() para una fecha local.
@@ -142,8 +142,12 @@
       $('#nav').hidden = false;
       $('#btnRecargar').hidden = false;
       var q = new URLSearchParams(location.search);
-      if (q.get('mov') && mov(q.get('mov'))) { ir('bandeja'); abrirEditor(mov(q.get('mov'))); }
+      var mq = q.get('mov') && mov(q.get('mov'));
+      if (q.get('cuadrar') && bolsa(q.get('cuadrar'))) { ir('inicio'); abrirCuadre(q.get('cuadrar')); }
+      else if (mq && mq.estado === 'POR_REVISAR') { ir('bandeja'); resaltar(mq.id); }
+      else if (mq) { ir('movimientos'); abrirEditor(mq); }
       else ir(porRevisar().length ? 'bandeja' : 'inicio');
+      if (location.search && !(mq && mq.estado !== 'POR_REVISAR') && !q.get('cuadrar')) history.replaceState(null, '', location.pathname);
     } catch (e) {
       console.error(e);
       $('#vista').innerHTML = '<div class="tarjeta"><b>No se pudo cargar.</b><p class="meta">' + esc(e.message || e) +
@@ -310,6 +314,13 @@
         '<button class="btn" data-acc="descartar" data-id="' + m.id + '">Descartar</button></div>';
     }
     return h + '</div>';
+  }
+
+  function resaltar(id) {
+    var el = document.getElementById('t-' + id);
+    if (!el) return;
+    el.classList.add('resaltada');
+    setTimeout(function () { el.scrollIntoView({ block: 'center' }); }, 50);
   }
 
   function repintarTarjeta(id) {
