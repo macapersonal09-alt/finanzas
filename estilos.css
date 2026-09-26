@@ -1,0 +1,151 @@
+/* Finanzas Personales · tonos joya, plano, dos pesos */
+:root {
+  --fondo: #f4f6f5;
+  --tarjeta: #ffffff;
+  --linea: #dfe5e3;
+  --tinta: #16211f;
+  --suave: #5d6b68;
+  --esmeralda: #0f6b5c;
+  --esmeralda-fondo: #e2f1ed;
+  --zafiro: #1f4e9c;
+  --zafiro-fondo: #e3eaf7;
+  --amatista: #6b3fa0;
+  --amatista-fondo: #eee6f7;
+  --rubi: #a3243f;
+  --rubi-fondo: #f7e3e8;
+  --barra: #0f3d3e;
+  --barra-tinta: #ffffff;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fondo: #0d1413;
+    --tarjeta: #16201e;
+    --linea: #26332f;
+    --tinta: #e8efed;
+    --suave: #93a39f;
+    --esmeralda: #3cc3a6;
+    --esmeralda-fondo: #143530;
+    --zafiro: #7ea6ec;
+    --zafiro-fondo: #172640;
+    --amatista: #b692e3;
+    --amatista-fondo: #2a1f3b;
+    --rubi: #ef7d95;
+    --rubi-fondo: #3a1a22;
+    --barra: #0a2a2b;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--fondo); color: var(--tinta);
+  font: 400 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-text-size-adjust: 100%; }
+b, strong, h1, h2, h3, .fuerte { font-weight: 600; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+
+.barra { position: sticky; top: 0; z-index: 5; background: var(--barra); color: var(--barra-tinta);
+  padding: calc(env(safe-area-inset-top) + 10px) 16px 10px; display: flex; align-items: center; }
+.barra h1 { font-size: 18px; margin: 0; flex: 1; }
+.icono { background: none; border: 0; color: inherit; font-size: 22px; padding: 4px 8px; }
+
+main { padding: 14px 16px calc(96px + env(safe-area-inset-bottom)); max-width: 640px; margin: 0 auto; }
+.cargando { color: var(--suave); text-align: center; margin-top: 40px; }
+
+nav#nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 5; display: flex;
+  background: var(--tarjeta); border-top: 1px solid var(--linea);
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); }
+nav#nav button { flex: 1; background: none; border: 0; padding: 6px 0; font-size: 12px; color: var(--suave);
+  display: flex; flex-direction: column; align-items: center; gap: 2px; position: relative; }
+nav#nav button span { font-size: 20px; line-height: 1; }
+nav#nav button.activo { color: var(--esmeralda); font-weight: 600; }
+nav#nav button.mas span { background: var(--esmeralda); color: #fff; width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; }
+#badge { position: absolute; top: 0; left: 55%; background: var(--rubi); color: #fff; font-size: 11px;
+  border-radius: 10px; padding: 0 6px; font-weight: 600; }
+
+.tarjeta { background: var(--tarjeta); border: 1px solid var(--linea); border-radius: var(--r);
+  padding: 14px; margin-bottom: 12px; }
+.seccion { font-size: 13px; color: var(--suave); text-transform: uppercase; letter-spacing: .04em;
+  margin: 18px 2px 8px; font-weight: 600; }
+
+/* inicio */
+.total { font-size: 30px; font-weight: 600; margin: 2px 0 0; }
+.bolsas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.bolsa { background: var(--tarjeta); border: 1px solid var(--linea); border-radius: var(--r); padding: 12px;
+  text-align: left; }
+.bolsa .nombre { font-size: 13px; color: var(--suave); }
+.bolsa .saldo { font-size: 19px; font-weight: 600; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.bolsa .pie { font-size: 12px; color: var(--suave); margin-top: 4px; }
+.bolsa.terminus { grid-column: 1 / -1; background: var(--amatista-fondo); border-color: transparent; }
+.alerta { display: block; width: 100%; text-align: left; background: var(--rubi-fondo); color: var(--rubi);
+  border: 0; border-radius: var(--r); padding: 12px 14px; font-weight: 600; margin-bottom: 12px; }
+.barra-cat { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; margin: 8px 0; }
+.barra-cat .riel { grid-column: 1 / -1; height: 6px; background: var(--linea); border-radius: 3px; overflow: hidden; }
+.barra-cat .riel i { display: block; height: 100%; background: var(--zafiro); }
+
+/* bandeja */
+.mov-cab { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.mov-cab .monto { font-size: 22px; font-weight: 600; }
+.mov-cab .monto.sale { color: var(--rubi); }
+.mov-cab .monto.entra { color: var(--esmeralda); }
+.mov-cab .monto.pasa { color: var(--zafiro); }
+.comercio { font-weight: 600; word-break: break-word; }
+.meta { font-size: 13px; color: var(--suave); margin-top: 2px; }
+.pregunta { margin: 12px 0 8px; font-size: 14px; color: var(--suave); }
+.botones { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { border: 0; border-radius: 10px; padding: 11px 14px; background: var(--esmeralda-fondo); color: var(--esmeralda);
+  font-weight: 600; font-size: 15px; }
+.btn.zafiro { background: var(--zafiro-fondo); color: var(--zafiro); }
+.btn.amatista { background: var(--amatista-fondo); color: var(--amatista); }
+.btn.rubi { background: var(--rubi-fondo); color: var(--rubi); }
+.btn.lleno { background: var(--esmeralda); color: #fff; }
+.btn.chico { padding: 8px 11px; font-size: 14px; font-weight: 400; }
+.btn.ancho { width: 100%; }
+.pie-tarjeta { display: flex; gap: 8px; margin-top: 12px; }
+.pie-tarjeta .btn { font-weight: 400; font-size: 13px; padding: 7px 10px; background: none; color: var(--suave);
+  border: 1px solid var(--linea); }
+input.nota, .campo input, .campo select, .campo textarea {
+  width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--linea);
+  background: var(--fondo); margin-top: 10px; font-size: 16px; }
+.vacio { text-align: center; color: var(--suave); padding: 40px 10px; }
+
+/* movimientos */
+.mes { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.mes b { font-size: 17px; }
+.filtros { display: flex; gap: 6px; margin-bottom: 10px; }
+.filtros button { border: 1px solid var(--linea); background: var(--tarjeta); border-radius: 20px; padding: 6px 12px; font-size: 14px; }
+.filtros button.activo { background: var(--esmeralda); color: #fff; border-color: var(--esmeralda); }
+.dia { font-size: 13px; color: var(--suave); margin: 14px 2px 6px; font-weight: 600; }
+.fila { display: flex; gap: 10px; align-items: center; background: var(--tarjeta); border: 1px solid var(--linea);
+  border-radius: 12px; padding: 10px 12px; margin-bottom: 6px; width: 100%; text-align: left; }
+.fila .txt { flex: 1; min-width: 0; }
+.fila .txt .comercio { font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fila .txt .meta { font-size: 12px; }
+.fila .num { font-weight: 600; }
+.fila.descartado { opacity: .45; text-decoration: line-through; }
+.chip { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 8px; background: var(--zafiro-fondo); color: var(--zafiro); margin-right: 4px; }
+.chip.revisar { background: var(--rubi-fondo); color: var(--rubi); }
+.sale { color: var(--rubi); } .entra { color: var(--esmeralda); } .pasa { color: var(--zafiro); }
+
+/* hoja (editor) */
+#hoja { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.4); display: flex; align-items: flex-end; }
+#hoja .panel { background: var(--tarjeta); width: 100%; max-width: 640px; margin: 0 auto; border-radius: 18px 18px 0 0;
+  padding: 16px 16px calc(20px + env(safe-area-inset-bottom)); max-height: 92vh; overflow: auto; }
+#hoja h2 { margin: 0 0 6px; font-size: 18px; }
+.campo { margin-top: 12px; }
+.campo label { font-size: 13px; color: var(--suave); font-weight: 600; }
+.campo input, .campo select { margin-top: 4px; }
+.fila2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.acciones { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+.acciones .btn { flex: 1; }
+.acciones.apiladas { flex-direction: column; }
+.error { color: var(--rubi); font-size: 14px; margin-top: 8px; }
+
+#aviso { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(84px + env(safe-area-inset-bottom));
+  background: var(--tinta); color: var(--fondo); padding: 10px 16px; border-radius: 20px; z-index: 30; font-size: 14px;
+  max-width: 90vw; text-align: center; }
+
+/* login */
+.login { max-width: 360px; margin: 40px auto; }
+.login h2 { margin-top: 0; }
