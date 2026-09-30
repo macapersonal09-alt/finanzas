@@ -15,7 +15,7 @@ con una bandeja para contestar lo que el sistema no sabe clasificar.
 ## Cuentas de GitHub
 
 - **macapersonal09-alt** (correo macapersonal.09@gmail.com): dueña de este repositorio.
-- **Maca2025**: la cuenta con la que entran las sesiones de Claude. Para poder subir cambios necesita ser
+- **Maca2025** (correo macarena@terminusmx.com): la cuenta con la que entran las sesiones de Claude. Para poder subir cambios necesita ser
   colaboradora de este repositorio (Settings → Collaborators, invitación aceptada desde Maca2025).
 
 ## Piezas y cómo se conectan
