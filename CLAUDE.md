@@ -70,5 +70,7 @@ con una bandeja para contestar lo que el sistema no sabe clasificar.
 
 ## Pendientes
 
+- Saldo de arranque de TERMINUS (hoy 0.00 al 31-ago-2026): falta saber cuánto se debía con Terminus en esa fecha;
+  corregirlo con Cuadrar → «Corregir saldo de arranque». El traspaso del 11-sep ($4,422.84 desde INVERSION) ya está registrado.
 - Cambiar la `SUPABASE_SERVICE_KEY` (se vio en una captura) y actualizarla en Propiedades del script.
 - Opcional: poner el Atajo "Gasto" en la pantalla de inicio o en el botón lateral del iPhone.
