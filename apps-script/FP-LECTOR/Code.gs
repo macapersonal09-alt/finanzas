@@ -1,6 +1,6 @@
 /**
  * =====================================================================
- * FP-LECTOR · v1.4 · 27-sep-2026
+ * FP-LECTOR · v1.5 · 30-sep-2026
  * Lee los avisos de Banorte del correo y los convierte en movimientos
  * de la app Finanzas Personales (Supabase).
  *
@@ -30,6 +30,12 @@
  *   PUSHOVER_PRIORIDAD    opcional: 0 normal · 1 alta/crítica (default) · 2 emergencia
  *   ATAJO_TOKEN           la contraseña que lleva el Atajo "Gasto"
  *
+ * v1.5:
+ *   · "TRASPASO DE CTA : 1151995728" = alguien te depositó desde su cuenta
+ *     Banorte (p. ej. Airbnb). Entra como INGRESO a tu cuenta del aviso.
+ *   · reglas de ingreso: si ese número ya tiene regla (la app la crea al
+ *     contestar), el depósito se CONFIRMA solo y no manda Pushover
+ *
  * v1.4:
  *   · el Atajo solo registra EFECTIVO (tarjeta y transferencias llegan por correo)
  *   · quita del dictado "pesos", "efectivo", "en efectivo", "cash"…
@@ -52,7 +58,7 @@
  */
 
 var FP = {
-  VERSION: 'FP-LECTOR v1.4',
+  VERSION: 'FP-LECTOR v1.5',
   TZ: 'America/Mexico_City',
   APP_URL: 'https://macapersonal09-alt.github.io/finanzas/',
   MAX_AVISOS: 5,
@@ -342,6 +348,11 @@ function fpInterpretar_(asunto, cuerpo) {
       a.tipo = 'INGRESO'; a.bolsa_entra = bolsa; a.duda = 'ORIGEN';
       a.pareja = 'ENTRA';
       a.llave = 'BNT|TRASP|' + a.fecha + '|' + a.hora + '|' + importe;
+    } else if (/^TRASPASO DE CTA\s*:?\s*\d{6,}/i.test(op2)) {
+      // alguien te pasó dinero desde SU cuenta Banorte (el número es la suya);
+      // "Cuenta Origen" del aviso es la tuya, a donde entró
+      a.tipo = 'INGRESO'; a.bolsa_entra = bolsa; a.duda = 'ORIGEN'; a.llave = llaveOp;
+      a.comercio = 'TRASPASO DE CTA : ' + op2.match(/(\d{6,})/)[1];
     } else if (/ORDEN DE PAGO SPEI/i.test(op2)) {
       a.tipo = 'GASTO'; a.bolsa_sale = bolsa; a.duda = 'DESTINO'; a.llave = llaveOp;
     } else if (/^[A-Z0-9]{15,}$/.test(op2)) {
@@ -480,19 +491,22 @@ function fpRegistrar_(consulta, notificar) {
   var plan = fpConsolidar_(fpLeerAvisos_(consulta));
   if (!plan.registrar.length && !plan.anuladas.length) return { leidos: 0, nuevos: 0 };
 
-  var cats = {};
-  fpGet_(cfg, 'categorias?select=id,nombre').forEach(function (c) { cats[c.nombre] = c.id; });
+  var cats = {}, tipoCat = {};
+  fpGet_(cfg, 'categorias?select=id,nombre,tipo').forEach(function (c) { cats[c.nombre] = c.id; tipoCat[c.id] = c.tipo; });
   var reglas = fpGet_(cfg, 'reglas?select=id,patron,categoria_id');
 
   var renglones = plan.registrar.map(function (a) {
     var catId = a.categoria ? (cats[a.categoria] || null) : null;
-    if (!catId && a.tipo === 'GASTO' && a.comercio) {
+    var conRegla = a.comercio && (a.tipo === 'GASTO' || (a.tipo === 'INGRESO' && a.duda === 'ORIGEN'));
+    if (!catId && conRegla) {
       var up = a.comercio.toUpperCase();
       for (var i = 0; i < reglas.length; i++) {
+        var tr = tipoCat[reglas[i].categoria_id];
+        if (a.tipo === 'INGRESO' ? tr !== 'INGRESO' : tr === 'INGRESO') continue;   // regla del tipo correcto
         if (up.indexOf(String(reglas[i].patron).toUpperCase()) !== -1) { catId = reglas[i].categoria_id; break; }
       }
-      // comercio conocido: se confirma solo
-      if (catId && a.duda === 'CATEGORIA' && a.estado === 'POR_REVISAR') { a.estado = 'CONFIRMADO'; a.duda = null; }
+      // comercio o depositante conocido: se confirma solo
+      if (catId && (a.duda === 'CATEGORIA' || a.duda === 'ORIGEN') && a.estado === 'POR_REVISAR') { a.estado = 'CONFIRMADO'; a.duda = null; }
     }
     return {
       fecha: a.fecha, hora: a.hora || null, monto: a.monto, tipo: a.tipo || null,
