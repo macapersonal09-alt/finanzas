@@ -12,6 +12,12 @@ con una bandeja para contestar lo que el sistema no sabe clasificar.
 - No usar el mecanismo automático de preguntas: preguntar en texto normal.
 - Ella trabaja en la **computadora** para Apps Script y GitHub; en el **iPhone** (en inglés) para Atajos y Pushover.
 
+## Cuentas de GitHub
+
+- **macapersonal09-alt** (correo macapersonal.09@gmail.com): dueña de este repositorio.
+- **Maca2025**: la cuenta con la que entran las sesiones de Claude. Para poder subir cambios necesita ser
+  colaboradora de este repositorio (Settings → Collaborators, invitación aceptada desde Maca2025).
+
 ## Piezas y cómo se conectan
 
 1. **App web** (este repositorio, publicada en GitHub Pages: https://macapersonal09-alt.github.io/finanzas/)
