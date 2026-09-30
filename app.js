@@ -1,5 +1,5 @@
 /* =====================================================================
- * Finanzas Personales · app.js · v1.2 · 26-sep-2026
+ * Finanzas Personales · app.js · v1.3 · 30-sep-2026
  * Vistas: inicio · bandeja · movimientos · nuevo gasto · cuadrar saldo
  * Datos: Supabase (tablas bolsas, categorias, reglas, movimientos)
  * Regla de fechas: NUNCA toISOString() para una fecha local.
@@ -81,6 +81,8 @@
   function bolsa(id) { return S.bolsas.find(function (b) { return b.id === id; }); }
   function nomBolsa(id) { var b = bolsa(id); return b ? b.nombre : (id || '—'); }
   function cat(id) { return S.cats.find(function (c) { return c.id === id; }); }
+  // ingresos que se aprenden: "TRASPASO DE CTA : 1151995728" (el número es quien te paga)
+  function patronIngreso(comercio) { return /^TRASPASO DE CTA\s*:\s*\d{6,}\s*$/i.test(comercio || '') ? comercio : null; }
   function mov(id) { return S.movs.find(function (m) { return m.id === id; }); }
   function vivo(m) { return m.estado !== 'DESCARTADO'; }
 
@@ -353,7 +355,12 @@
       var cambios = c.tipo === 'INGRESO'
         ? { tipo: 'INGRESO', bolsa_sale: null, bolsa_entra: m.bolsa_entra || m.bolsa_sale, categoria_id: catId }
         : { tipo: 'GASTO', bolsa_sale: m.bolsa_sale || m.bolsa_entra, bolsa_entra: null, categoria_id: catId };
-      return resolver(m, cambios, c.nombre);
+      var hecho = await resolver(m, cambios, c.nombre);
+      // ingreso de alguien conocido: la próxima vez se confirma solo
+      if (hecho && c.tipo === 'INGRESO' && patronIngreso(m.comercio)) {
+        try { await DB.guardarRegla(m.comercio, catId); } catch (e) { fallo(e); }
+      }
+      return hecho;
     }
     if (md === 'compra') {
       var r = await resolver(m, { categoria_id: catId }, c.nombre);
@@ -519,6 +526,7 @@
         else {
           r = await DB.actualizar(m.id, datos);
           if (m.fuente === 'CORREO' && t === 'GASTO' && catId && m.comercio && catId !== m.categoria_id) await DB.guardarRegla(m.comercio, catId);
+          else if (t === 'INGRESO' && catId && patronIngreso(m.comercio) && catId !== m.categoria_id) await DB.guardarRegla(m.comercio, catId);
         }
         reemplazar(r);
         cerrarHoja(); aviso('Guardado'); pintar();

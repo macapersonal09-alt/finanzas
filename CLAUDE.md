@@ -12,6 +12,12 @@ con una bandeja para contestar lo que el sistema no sabe clasificar.
 - No usar el mecanismo automático de preguntas: preguntar en texto normal.
 - Ella trabaja en la **computadora** para Apps Script y GitHub; en el **iPhone** (en inglés) para Atajos y Pushover.
 
+## Cuentas de GitHub
+
+- **macapersonal09-alt** (correo macapersonal.09@gmail.com): dueña de este repositorio.
+- **Maca2025** (correo macarena@terminusmx.com): la cuenta con la que entran las sesiones de Claude. Para poder subir cambios necesita ser
+  colaboradora de este repositorio (Settings → Collaborators, invitación aceptada desde Maca2025).
+
 ## Piezas y cómo se conectan
 
 1. **App web** (este repositorio, publicada en GitHub Pages: https://macapersonal09-alt.github.io/finanzas/)
@@ -59,6 +65,8 @@ con una bandeja para contestar lo que el sistema no sabe clasificar.
 - 26-sep-2026 · App web v1.2 y FP-LECTOR v1.3 (lector de correos + Pushover + primer doPost).
 - 27-sep-2026 · FP-LECTOR v1.4: atajo solo efectivo, limpia el dictado ("300 pesos gasolina en efectivo" → $300 · gasolina),
   Pushover con liga cuando lo dictado queda por revisar. Implementación "Atajo Gasto" versión 2. Atajo probado de punta a punta.
+- 30-sep-2026 · FP-LECTOR v1.5 y app web v1.3: "TRASPASO DE CTA : número" (depósito desde otra cuenta Banorte, p. ej. Airbnb)
+  entra como INGRESO; al contestarlo con una categoría de ingreso la app guarda la regla y el siguiente se confirma solo. Categoría nueva "Airbnb".
 
 ## Pendientes
 
