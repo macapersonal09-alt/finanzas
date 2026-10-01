@@ -1,5 +1,5 @@
 /* =====================================================================
- * Finanzas Personales · app.js · v1.4 · 01-oct-2026
+ * Finanzas Personales · app.js · v1.5 · 01-oct-2026
  * Vistas: inicio · bandeja · movimientos · nuevo gasto · cuadrar saldo
  * Datos: Supabase (tablas bolsas, categorias, reglas, movimientos)
  * Regla de fechas: NUNCA toISOString() para una fecha local.
@@ -10,7 +10,7 @@
   // ------------------------------------------------------------------
   // 1. ACCESO A DATOS
   // ------------------------------------------------------------------
-  var COLS = 'id,fecha,hora,monto,tipo,bolsa_sale,bolsa_entra,categoria_id,comercio,descripcion,estado,duda,fuente,llave';
+  var COLS = 'id,fecha,hora,monto,tipo,bolsa_sale,bolsa_entra,categoria_id,comercio,descripcion,estado,duda,fuente,llave,provisional';
 
   function dbReal() {
     var cfg = window.FP_CONFIG;
@@ -103,15 +103,25 @@
     if (i >= 0) S.movs[i] = m; else S.movs.unshift(m);
   }
 
+  // Una cuenta con cubre_desde (Enlace) no baja de cero: Banorte pasa lo que falta desde la otra
+  // cuenta (los "CL", que no llegan por correo), así que la app hace lo mismo en orden de fecha y hora.
+  // S.cubierto[id] = lo que se tomó de la otra cuenta.
   function saldos() {
-    var r = {};
-    S.bolsas.forEach(function (b) { r[b.id] = Number(b.saldo_inicial) || 0; });
-    S.movs.forEach(function (m) {
-      if (!vivo(m) || !m.tipo) return;
-      if (m.bolsa_entra && r[m.bolsa_entra] != null && m.fecha > bolsa(m.bolsa_entra).fecha_saldo_inicial) r[m.bolsa_entra] += Number(m.monto);
-      if (m.bolsa_sale && r[m.bolsa_sale] != null && m.fecha > bolsa(m.bolsa_sale).fecha_saldo_inicial) r[m.bolsa_sale] -= Number(m.monto);
+    var r = {}, cub = {};
+    S.bolsas.forEach(function (b) { r[b.id] = Number(b.saldo_inicial) || 0; cub[b.id] = 0; });
+    function cuenta(id, m) { return id && r[id] != null && m.fecha > bolsa(id).fecha_saldo_inicial; }
+    S.movs.filter(function (m) { return vivo(m) && m.tipo; }).sort(function (a, b) {
+      return (a.fecha + (a.hora || '')).localeCompare(b.fecha + (b.hora || ''));
+    }).forEach(function (m) {
+      if (cuenta(m.bolsa_entra, m)) r[m.bolsa_entra] += Number(m.monto);
+      if (cuenta(m.bolsa_sale, m)) {
+        var id = m.bolsa_sale, de = bolsa(id).cubre_desde;
+        r[id] -= Number(m.monto);
+        if (de && r[de] != null && r[id] < 0) { r[de] += r[id]; cub[id] -= r[id]; r[id] = 0; }
+      }
     });
     Object.keys(r).forEach(function (k) { r[k] = Math.round(r[k] * 100) / 100; });
+    S.cubierto = cub;
     return r;
   }
 
@@ -498,6 +508,7 @@
       h += '<button class="fila ' + (vivo(m) ? '' : 'descartado') + '" data-editar="' + m.id + '"><div class="txt">' +
         '<div class="comercio">' + esc(titulo(m)) + '</div><div class="meta">' +
         (m.estado === 'POR_REVISAR' ? '<span class="chip revisar">por revisar</span>' : '') +
+        (m.provisional ? '<span class="chip proceso">en proceso</span>' : '') +
         (c ? '<span class="chip">' + esc(nombreCat(c)) + '</span>' : '') + esc(descripcionBolsas(m)) + '</div></div>' +
         '<div class="num ' + l.clase + '">' + (m.tipo === 'GASTO' ? '−' : m.tipo === 'INGRESO' ? '+' : '') + dinero(m.monto) + '</div></button>';
     });
@@ -548,6 +559,7 @@
       '<div class="campo" id="cEntra"><label>Entra a</label><select id="eEntra">' + opcionesBolsa(d.bolsa_entra, true) + '</select></div></div>' +
       '<div class="campo" id="cCat"><label>Categoría</label><select id="eCat"></select></div>' +
       '<div class="campo"><label>Descripción</label><input id="eDesc" value="' + esc(d.descripcion || '') + '" placeholder="Opcional"></div>' +
+      '<label class="casilla" id="cProv"><input type="checkbox" id="eProv"' + (d.provisional ? ' checked' : '') + '> En proceso (el banco aún no avisa)</label>' +
       '<div class="error" id="eErr"></div>' +
       '<div class="acciones"><button class="btn lleno" id="eGuardar">Guardar</button>' +
       (nuevo ? '' : (m.estado === 'DESCARTADO' ? '<button class="btn zafiro" id="eRevivir">Recuperar</button>' : '<button class="btn rubi" id="eDescartar">Descartar</button>')) +
@@ -565,6 +577,8 @@
       $('#cEntra').style.display = t === 'GASTO' ? 'none' : '';
       if (t === 'INGRESO' && !$('#eEntra').value) $('#eEntra').value = d.bolsa_sale || 'ENLACE';
       if (t === 'GASTO' && !$('#eSale').value) $('#eSale').value = d.bolsa_entra || 'EFECTIVO';
+      var bs = bolsa($('#eSale').value);
+      $('#cProv').style.display = t === 'GASTO' && bs && bs.tipo === 'BANCO' ? '' : 'none';
       var mc = modoEd();
       $('#cCat').style.display = mc ? '' : 'none';
       var catSel = Number($('#eCat').value) || d.categoria_id;
@@ -573,6 +587,7 @@
     }
     $('#eTipo').onchange = ajustar;
     $('#eEntra').onchange = ajustar;
+    $('#eSale').onchange = ajustar;
     ajustar();
     if (nuevo) setTimeout(function () { $('#eMonto').focus(); }, 50);
 
@@ -598,7 +613,8 @@
       else if (t === 'TRASPASO' && sale === entra) err = 'Sale y entra no pueden ser la misma cuenta.';
       if (err) { $('#eErr').textContent = err; return; }
       var datos = { tipo: t, monto: monto, fecha: $('#eFecha').value, bolsa_sale: sale, bolsa_entra: entra,
-        categoria_id: catId, descripcion: $('#eDesc').value.trim() || null, estado: 'CONFIRMADO', duda: null };
+        categoria_id: catId, descripcion: $('#eDesc').value.trim() || null, estado: 'CONFIRMADO', duda: null,
+        provisional: $('#cProv').style.display !== 'none' && $('#eProv').checked };
       try {
         var r;
         if (nuevo) { datos.fuente = 'APP'; r = await DB.insertar(datos); }
@@ -627,6 +643,7 @@
     hoja.innerHTML = '<div class="panel"><h2>Cuadrar ' + esc(b.nombre) + '</h2>' +
       '<div class="meta">Según la app: <b class="num">' + dinero(calc) + '</b>' +
       (virtual ? ' (negativo = le debes a Terminus)' : '') + '</div>' +
+      (S.cubierto && S.cubierto[id] ? '<div class="meta">Incluye ' + dinero(S.cubierto[id]) + ' que Banorte pasó desde ' + esc(nomBolsa(b.cubre_desde)) + ' para cubrir compras.</div>' : '') +
       '<div class="campo"><label>' + (virtual ? 'Saldo real (negativo si le debes)' : (b.tipo === 'EFECTIVO' ? '¿Cuánto traes?' : '¿Qué saldo dice tu app de Banorte?')) + '</label>' +
       '<input id="cReal" type="number" inputmode="decimal" step="0.01"></div>' +
       '<div class="meta" id="cDif" style="margin-top:8px"></div><div class="error" id="cErr"></div>' +
