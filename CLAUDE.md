@@ -31,6 +31,10 @@ con una bandeja para contestar lo que el sistema no sabe clasificar.
    - Tablas: `bolsas` (cuentas), `categorias`, `reglas` (patrón de comercio → categoría), `movimientos`. Vista `saldos`.
    - `categorias.padre_id` = categoría madre (subcategorías; elegir la madre = "Otros"). `categorias.terminus` = conceptos
      (Nóminas, Cajas chicas, Material) de lo que Maca paga por Terminus: van en el TRASPASO a la bolsa TERMINUS, no son gasto suyo.
+   - `movimientos.provisional` = compra "en proceso" que Banorte aún no avisa: ya cuenta en el saldo; cuando llega el correo
+     (misma cuenta, mismo monto, fecha cercana) el lector la junta con el aviso y borra el provisional.
+   - `bolsas.cubre_desde`: ENLACE → INVERSION. Banorte cubre automáticamente lo que Enlace no alcanza ("CARGO/ABONO POR CL",
+     **no llegan por correo**); la app lo simula en `saldos()` en orden de fecha y hora, sin crear movimientos.
    - Cambios de estructura: archivos en `supabase/` (se corren a mano en el SQL Editor).
    - Bolsas: `EFECTIVO`, `ENLACE` (Banorte ****3123, la tarjeta de débito carga aquí), `INVERSION` (Banorte ****3918), `TERMINUS` (virtual: cuenta por cobrar/pagar con la empresa).
    - `movimientos`: `tipo` GASTO/INGRESO/TRASPASO · `estado` POR_REVISAR/CONFIRMADO/DESCARTADO ·
@@ -47,6 +51,7 @@ con una bandeja para contestar lo que el sistema no sabe clasificar.
 4. **Atajo de iPhone "Gasto"** ("Oye Siri, Gasto")
    - Dictate Text (Español MX) → Get Contents of URL (POST, JSON: `token`, `texto` = Dictated Text) a la URL `/exec` de la aplicación web → Show Notification con Contents of URL.
    - **Solo para efectivo.** Tarjeta y transferencias ya llegan por los correos de Banorte (dictarlas las duplicaría).
+     Excepción: "provisional / en proceso / tarjeta …" → gasto provisional de ENLACE, para compras que Banorte aún no avisa.
    - Si el concepto tiene regla → CONFIRMADO en silencio. Si no → POR_REVISAR + Pushover con liga "Contestar".
      Al elegir la categoría en la bandeja, la app crea la regla y la próxima vez se confirma solo.
 
@@ -72,9 +77,14 @@ con una bandeja para contestar lo que el sistema no sabe clasificar.
   entra como INGRESO; al contestarlo con una categoría de ingreso la app guarda la regla y el siguiente se confirma solo. Categoría nueva "Airbnb".
 - 01-oct-2026 · App web v1.4: subcategorías (Personal, Casa, Salud) y conceptos de Terminus; en Inicio cada madre se abre con su
   desglose y hay una sección "Pagaste por Terminus". SQL: `supabase/2026-10-01-subcategorias.sql`.
+- 01-oct-2026 · App web v1.5 y FP-LECTOR v1.6: movimientos provisionales ("en proceso") y cobertura automática de Enlace desde
+  Inversión. Cuadre de septiembre: el total cuadró al centavo; faltaban los $20,000 de Pavel (categoría "De Pavel") y 5 compras
+  de Amazon en proceso. SQL: `supabase/2026-10-01-provisionales-y-cobertura.sql`.
 
 ## Pendientes
 
+- Revisar que las 5 compras de Amazon provisionales (29 y 30-sep) se confirmen solas al llegar los correos de Banorte.
+  Si el correo trae otro monto, no se juntan: descartar el provisional a mano.
 - Saldo de arranque de TERMINUS (hoy 0.00 al 31-ago-2026): falta saber cuánto se debía con Terminus en esa fecha;
   corregirlo con Cuadrar → «Corregir saldo de arranque». El traspaso del 11-sep ($4,422.84 desde INVERSION) ya está registrado.
 - Cambiar la `SUPABASE_SERVICE_KEY` (se vio en una captura) y actualizarla en Propiedades del script.

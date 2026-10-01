@@ -1,7 +1,7 @@
 // Finanzas Personales · service worker
 // Red primero: siempre la versión más nueva; la copia guardada solo sirve sin internet.
 // Nunca guarda llamadas a Supabase.
-var CACHE = 'fp-v3';
+var CACHE = 'fp-v4';
 var BASE = ['./', 'index.html', 'app.js', 'estilos.css', 'config.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-180.png'];
 
 self.addEventListener('install', function (e) {

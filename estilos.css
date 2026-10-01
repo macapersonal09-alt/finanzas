@@ -129,6 +129,8 @@ input.nota, .campo input, .campo select, .campo textarea {
 .fila.descartado { opacity: .45; text-decoration: line-through; }
 .chip { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 8px; background: var(--zafiro-fondo); color: var(--zafiro); margin-right: 4px; }
 .chip.revisar { background: var(--rubi-fondo); color: var(--rubi); }
+.chip.proceso { background: var(--amatista-fondo); color: var(--amatista); }
+.casilla { display: flex; gap: 8px; align-items: center; font-size: 14px; margin: 4px 0 10px; color: var(--suave); }
 .sale { color: var(--rubi); } .entra { color: var(--esmeralda); } .pasa { color: var(--zafiro); }
 
 /* hoja (editor) */

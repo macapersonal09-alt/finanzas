@@ -1,6 +1,6 @@
 /**
  * =====================================================================
- * FP-LECTOR · v1.5 · 30-sep-2026
+ * FP-LECTOR · v1.6 · 01-oct-2026
  * Lee los avisos de Banorte del correo y los convierte en movimientos
  * de la app Finanzas Personales (Supabase).
  *
@@ -30,6 +30,13 @@
  *   PUSHOVER_PRIORIDAD    opcional: 0 normal · 1 alta/crítica (default) · 2 emergencia
  *   ATAJO_TOKEN           la contraseña que lleva el Atajo "Gasto"
  *
+ * v1.6:
+ *   · movimientos PROVISIONALES ("en proceso"): cuando llega el aviso de una compra que ya
+ *     anotaste en proceso (misma cuenta, mismo monto, fecha cercana), el aviso se queda con su
+ *     categoría y nota y el provisional se borra: no hay duplicados ni Pushover
+ *   · el Atajo acepta "provisional", "en proceso" o "tarjeta": "provisional amazon 1,600" →
+ *     gasto EN PROCESO de Enlace (la tarjeta de débito), no de efectivo
+ *
  * v1.5:
  *   · "TRASPASO DE CTA : 1151995728" = alguien te depositó desde su cuenta
  *     Banorte (p. ej. Airbnb). Entra como INGRESO a tu cuenta del aviso.
@@ -58,7 +65,7 @@
  */
 
 var FP = {
-  VERSION: 'FP-LECTOR v1.5',
+  VERSION: 'FP-LECTOR v1.6',
   TZ: 'America/Mexico_City',
   APP_URL: 'https://macapersonal09-alt.github.io/finanzas/',
   MAX_AVISOS: 5,
@@ -164,6 +171,7 @@ function probarAtajo() {
   Logger.log(JSON.stringify(fpAtajo_('200 tacos', false)));
   Logger.log(JSON.stringify(fpAtajo_('Gasolina $850.50', false)));
   Logger.log(JSON.stringify(fpAtajo_('300 pesos gasolina en efectivo', false)));
+  Logger.log(JSON.stringify(fpAtajo_('provisional, amazon, 1,600', false)));
 }
 
 // "200 tacos" · "$1,250.50 farmacia" · "tacos 200" → monto + descripción
@@ -175,24 +183,28 @@ function fpLeerDictado_(texto) {
   if (!m) return null;
   var monto = Number(m[1].replace(/,/g, '') + (m[2] ? '.' + m[2] : ''));
   var desc = t.slice(0, m.index) + ' ' + t.slice(m.index + m[0].length);
+  // "provisional", "en proceso", "tarjeta" = compra con la tarjeta que el banco aún no avisa
+  var prov = /(^|\s)(provisional|en proceso|(con |en |de |por )?tarjeta)(?=\s|[.,;]|$)/i.test(desc);
+  desc = desc.replace(/(^|\s)(provisional|en proceso|(con |en |de |por )?tarjeta)(?=\s|[.,;]|$)/ig, ' ');
   desc = desc.replace(/(^|\s)((en|con|de|por)\s+)?(efectivo|cash)(?=\s|[.,;]|$)/ig, ' ');
   desc = desc.replace(/(^|\s)(pesos?|mxn)(?=\s|[.,;]|$)/ig, ' ');
   desc = desc.replace(/\s+/g, ' ').replace(/^[\s.,;]+|[\s.,;]+$/g, '');
   desc = desc.replace(/^((gast[eé]|pagu[eé]|compr[eé]|de|en|por|para|con|el|la|los|las|un|una)\s+)+/i, '').replace(/(\s+(de|en|por|para|con))+$/i, '');
-  return monto > 0 ? { monto: Math.round(monto * 100) / 100, desc: desc } : null;
+  return monto > 0 ? { monto: Math.round(monto * 100) / 100, desc: desc, prov: prov } : null;
 }
 
 function fpAtajo_(texto, escribir) {
   var l = fpLeerDictado_(texto);
   if (!l) return { ok: false, texto: 'No entendí el monto. Di por ejemplo: 200 tacos.' };
-  var comercio = (l.desc || 'EFECTIVO').toUpperCase();
+  var comercio = (l.desc || (l.prov ? 'TARJETA' : 'EFECTIVO')).toUpperCase();
   var mov = {
     fecha: Utilities.formatDate(new Date(), FP.TZ, 'yyyy-MM-dd'),
     hora: Utilities.formatDate(new Date(), FP.TZ, 'HH:mm:ss'),
-    monto: l.monto, tipo: 'GASTO', bolsa_sale: 'EFECTIVO', bolsa_entra: null,
+    monto: l.monto, tipo: 'GASTO', bolsa_sale: l.prov ? 'ENLACE' : 'EFECTIVO', bolsa_entra: null,
     categoria_id: null, comercio: comercio, descripcion: l.desc || null,
     estado: 'POR_REVISAR', duda: 'CATEGORIA', fuente: 'ATAJO', llave: null
   };
+  if (l.prov) mov.provisional = true;   // se confirma solo cuando llegue el aviso de Banorte
   var monto = '$' + l.monto.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (!escribir) return { ok: true, mov: mov };
   var cfg = fpConfig_();
@@ -212,7 +224,7 @@ function fpAtajo_(texto, escribir) {
   if (guardado && guardado.estado === 'POR_REVISAR') {
     try { fpPush_(fpMensaje_(guardado)); } catch (err) { Logger.log('Pushover atajo: ' + err.message); }
   }
-  return { ok: true, texto: 'Anotado: ' + monto + (l.desc ? ' · ' + l.desc : '') +
+  return { ok: true, texto: (l.prov ? 'Anotado en proceso (Enlace): ' : 'Anotado: ') + monto + (l.desc ? ' · ' + l.desc : '') +
     (nombreCat ? ' · ' + nombreCat : ' · queda en la bandeja para su categoría') };
 }
 
@@ -525,6 +537,23 @@ function fpRegistrar_(consulta, notificar) {
     nuevos = nuevos.concat(JSON.parse(res || '[]'));
   }
 
+  // 1b) provisionales: un aviso nuevo de una compra que ya anotaste "en proceso" se queda con
+  //     su categoría y nota, y el provisional se borra (no hay duplicado ni Pushover)
+  var juntados = 0;
+  var prov = nuevos.length ? fpGet_(cfg, 'movimientos?provisional=eq.true&estado=neq.DESCARTADO&select=id,fecha,monto,bolsa_sale,categoria_id,descripcion') : [];
+  nuevos.forEach(function (n) {
+    if (n.tipo !== 'GASTO' || !n.bolsa_sale || n.provisional) return;
+    var i = fpBuscarProvisional_(prov, n);
+    if (i < 0) return;
+    var p = prov.splice(i, 1)[0];
+    var cambios = { categoria_id: p.categoria_id || n.categoria_id, descripcion: p.descripcion || n.descripcion };
+    if (cambios.categoria_id && n.duda === 'CATEGORIA') { cambios.estado = 'CONFIRMADO'; cambios.duda = null; }
+    var r = JSON.parse(fpFetch_(cfg, 'patch', 'movimientos?id=eq.' + n.id, cambios, 'return=representation') || '[]')[0];
+    fpFetch_(cfg, 'delete', 'movimientos?id=eq.' + p.id);
+    if (r) Object.keys(r).forEach(function (k) { n[k] = r[k]; });
+    juntados++;
+  });
+
   // 2) parejas: si una punta llegó en una corrida anterior, se completa
   var completadas = 0;
   plan.parejas.forEach(function (p) {
@@ -549,8 +578,24 @@ function fpRegistrar_(consulta, notificar) {
   var avisos = 0;
   if (notificar) avisos = fpAvisar_(nuevos.filter(function (m) { return m.estado === 'POR_REVISAR'; }));
 
-  return { leidos: renglones.length, nuevos: nuevos.length, parejas_completadas: completadas, anuladas: descartadas, avisos: avisos };
+  return { leidos: renglones.length, nuevos: nuevos.length, provisionales_confirmados: juntados, parejas_completadas: completadas, anuladas: descartadas, avisos: avisos };
 }
+
+// provisional de la misma cuenta, mismo monto (±1 centavo), de hasta 7 días antes (o 1 después) del aviso;
+// si hay varios, el de fecha más cercana
+function fpBuscarProvisional_(prov, n) {
+  var mejor = -1, dMejor = 99;
+  for (var i = 0; i < prov.length; i++) {
+    var p = prov[i];
+    if (p.bolsa_sale !== n.bolsa_sale || Math.abs(Number(p.monto) - Number(n.monto)) > 0.011) continue;
+    var d = fpDia_(n.fecha) - fpDia_(p.fecha);
+    if (d < -1 || d > 7) continue;
+    if (Math.abs(d) < dMejor) { mejor = i; dMejor = Math.abs(d); }
+  }
+  return mejor;
+}
+
+function fpDia_(f) { return Date.UTC(Number(f.slice(0, 4)), Number(f.slice(5, 7)) - 1, Number(f.slice(8, 10))) / 864e5; }
 
 // =====================================================================
 // 5b. AVISOS PUSHOVER
