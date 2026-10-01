@@ -1,5 +1,5 @@
 /* =====================================================================
- * Finanzas Personales · app.js · v1.3 · 30-sep-2026
+ * Finanzas Personales · app.js · v1.4 · 01-oct-2026
  * Vistas: inicio · bandeja · movimientos · nuevo gasto · cuadrar saldo
  * Datos: Supabase (tablas bolsas, categorias, reglas, movimientos)
  * Regla de fechas: NUNCA toISOString() para una fecha local.
@@ -63,7 +63,7 @@
   // ------------------------------------------------------------------
   // 2. ESTADO Y AYUDANTES
   // ------------------------------------------------------------------
-  var S = { bolsas: [], cats: [], reglas: [], movs: [], vista: 'inicio', mes: null, filtro: 'todos', pasos: {} };
+  var S = { bolsas: [], cats: [], reglas: [], movs: [], vista: 'inicio', mes: null, filtro: 'todos', pasos: {}, abiertas: {} };
   var $ = function (s) { return document.querySelector(s); };
   var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
   var MESES3 = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -81,6 +81,12 @@
   function bolsa(id) { return S.bolsas.find(function (b) { return b.id === id; }); }
   function nomBolsa(id) { var b = bolsa(id); return b ? b.nombre : (id || '—'); }
   function cat(id) { return S.cats.find(function (c) { return c.id === id; }); }
+  // subcategorías: padre_id = la categoría madre; terminus = conceptos de lo que pagas por Terminus
+  function raiz(c) { return c && c.padre_id ? (cat(c.padre_id) || c) : c; }
+  function hijos(id) { return S.cats.filter(function (c) { return c.padre_id === id && c.activa; }).sort(function (a, b) { return a.orden - b.orden; }); }
+  function nombreCat(c) { if (!c) return ''; var r = raiz(c); return r !== c ? r.nombre + ' · ' + c.nombre : c.nombre; }
+  function catTerminus() { return S.cats.find(function (c) { return c.terminus && !c.padre_id && c.activa; }); }
+  function modoCat(c) { return c.terminus ? 'TERMINUS' : c.tipo; }
   // ingresos que se aprenden: "TRASPASO DE CTA : 1151995728" (el número es quien te paga)
   function patronIngreso(comercio) { return /^TRASPASO DE CTA\s*:\s*\d{6,}\s*$/i.test(comercio || '') ? comercio : null; }
   function mov(id) { return S.movs.find(function (m) { return m.id === id; }); }
@@ -111,11 +117,11 @@
 
   function porRevisar() { return S.movs.filter(function (m) { return m.estado === 'POR_REVISAR'; }); }
 
-  // categorías ordenadas por uso
+  // categorías principales ordenadas por uso (el uso de las subcategorías cuenta para su madre)
   function catsPorUso(tipo) {
     var uso = {};
-    S.movs.forEach(function (m) { if (m.categoria_id && vivo(m)) uso[m.categoria_id] = (uso[m.categoria_id] || 0) + 1; });
-    return S.cats.filter(function (c) { return c.tipo === tipo && c.activa; })
+    S.movs.forEach(function (m) { var r = raiz(cat(m.categoria_id)); if (r && vivo(m)) uso[r.id] = (uso[r.id] || 0) + 1; });
+    return S.cats.filter(function (c) { return c.tipo === tipo && c.activa && !c.padre_id && !c.terminus; })
       .sort(function (a, b) { return (uso[b.id] || 0) - (uso[a.id] || 0) || a.orden - b.orden; });
   }
 
@@ -230,18 +236,51 @@
     var ym = mesDe(hoy());
     var gastos = S.movs.filter(function (m) { return vivo(m) && m.tipo === 'GASTO' && mesDe(m.fecha) === ym; });
     var totalG = gastos.reduce(function (a, m) { return a + Number(m.monto); }, 0);
-    var porCat = {};
-    gastos.forEach(function (m) { var k = m.categoria_id ? cat(m.categoria_id).nombre : 'Sin categoría'; porCat[k] = (porCat[k] || 0) + Number(m.monto); });
-    var filas = Object.keys(porCat).map(function (k) { return [k, porCat[k]]; }).sort(function (a, b) { return b[1] - a[1]; });
+    // por categoría madre; las que tienen subcategorías se abren para ver el desglose
+    var porCat = {}, porSub = {};
+    gastos.forEach(function (m) {
+      var c = cat(m.categoria_id), r = raiz(c), k = r ? r.id : 0, monto = Number(m.monto);
+      porCat[k] = (porCat[k] || 0) + monto;
+      if (r && hijos(r.id).length) {
+        var s = porSub[k] = porSub[k] || {}, sk = c === r ? 'Otros' : c.nombre;
+        s[sk] = (s[sk] || 0) + monto;
+      }
+    });
+    var filas = Object.keys(porCat).map(function (k) { return [Number(k), porCat[k]]; }).sort(function (a, b) { return b[1] - a[1]; });
     h += '<div class="seccion">Gastos de ' + nombreMes(ym) + '</div><div class="tarjeta">';
     h += '<div class="mov-cab"><span>Total</span><span class="monto sale num">' + dinero(totalG) + '</span></div>';
     filas.slice(0, 8).forEach(function (f) {
+      var r = cat(f[0]), subs = porSub[f[0]], abierta = S.abiertas[f[0]];
       var pct = totalG ? Math.round(f[1] / totalG * 100) : 0;
-      h += '<div class="barra-cat"><span>' + esc(f[0]) + '</span><span class="num">' + dinero(f[1]) + '</span>' +
-        '<div class="riel"><i style="width:' + pct + '%"></i></div></div>';
+      var fila = '<span>' + esc(r ? r.nombre : 'Sin categoría') + (subs ? (abierta ? ' ▾' : ' ›') : '') + '</span><span class="num">' + dinero(f[1]) + '</span>' +
+        '<div class="riel"><i style="width:' + pct + '%"></i></div>';
+      h += subs ? '<button class="barra-cat abre" data-grupo="' + f[0] + '">' + fila + '</button>' : '<div class="barra-cat">' + fila + '</div>';
+      if (subs && abierta) {
+        Object.keys(subs).map(function (k) { return [k, subs[k]]; }).sort(function (a, b) { return b[1] - a[1]; }).forEach(function (x) {
+          h += '<div class="sub-cat"><span>' + esc(x[0]) + '</span><span class="num">' + dinero(x[1]) + '</span></div>';
+        });
+      }
     });
     if (!filas.length) h += '<div class="meta">Sin gastos este mes.</div>';
     h += '</div>';
+
+    // lo que pagaste por Terminus (traspasos a la cuenta con Terminus), por concepto
+    var term = S.movs.filter(function (m) { return vivo(m) && m.tipo === 'TRASPASO' && m.bolsa_entra === 'TERMINUS' && mesDe(m.fecha) === ym; });
+    if (term.length) {
+      var porT = {}, totalT = 0;
+      term.forEach(function (m) {
+        var c = cat(m.categoria_id), k = !c ? 'Sin concepto' : c.padre_id ? c.nombre : 'Otros';
+        porT[k] = (porT[k] || 0) + Number(m.monto); totalT += Number(m.monto);
+      });
+      h += '<div class="seccion">Pagaste por Terminus en ' + nombreMes(ym) + '</div><div class="tarjeta">';
+      h += '<div class="mov-cab"><span>Total</span><span class="monto pasa num">' + dinero(totalT) + '</span></div>';
+      Object.keys(porT).map(function (k) { return [k, porT[k]]; }).sort(function (a, b) { return b[1] - a[1]; }).forEach(function (x) {
+        var pct = totalT ? Math.round(x[1] / totalT * 100) : 0;
+        h += '<div class="barra-cat"><span>' + esc(x[0]) + '</span><span class="num">' + dinero(x[1]) + '</span>' +
+          '<div class="riel"><i style="width:' + pct + '%"></i></div></div>';
+      });
+      h += '</div>';
+    }
     $('#vista').innerHTML = h;
   }
 
@@ -263,9 +302,20 @@
     $('#vista').innerHTML = lista.map(tarjeta).join('');
   }
 
+  function botonCat(m, c, txt, acc) {
+    return '<button class="btn chico zafiro" data-acc="' + (acc || 'cat') + '" data-id="' + m.id + '" data-cat="' + c.id + '"' +
+      (acc ? '' : ' data-final="1"') + '>' + esc(txt) + '</button>';
+  }
+  // primero las categorías principales; si la elegida tiene subcategorías, un segundo nivel
   function botonesCats(m, tipoCat) {
+    var madre = cat((S.pasos[m.id] || {}).madre);
+    if (madre) {
+      return '<div class="pregunta">' + esc(madre.nombre) + ':</div><div class="botones">' +
+        hijos(madre.id).map(function (c) { return botonCat(m, c, c.nombre); }).join('') + botonCat(m, madre, 'Otros') + '</div>' +
+        '<div class="botones" style="margin-top:8px"><button class="btn" data-acc="sinMadre" data-id="' + m.id + '">← Categorías</button></div>';
+    }
     return '<div class="botones">' + catsPorUso(tipoCat).map(function (c) {
-      return '<button class="btn chico zafiro" data-acc="cat" data-id="' + m.id + '" data-cat="' + c.id + '">' + esc(c.nombre) + '</button>';
+      return botonCat(m, c, c.nombre + (hijos(c.id).length ? ' ›' : ''), 'cat');
     }).join('') + '</div>';
   }
   function botonesBolsas(m, excluir, acc) {
@@ -285,6 +335,11 @@
       h += '<input class="nota" data-nota="' + m.id + '" placeholder="' + (p.tipoCat === 'INGRESO' ? '¿De quién? Luego toca la categoría' : '¿A quién? Luego toca la categoría') + '" value="' + esc(p.nota || '') + '">';
       h += '<div class="pregunta">' + (p.tipoCat === 'INGRESO' ? '¿Qué tipo de ingreso?' : '¿En qué se fue?') + '</div>';
       h += botonesCats(m, p.tipoCat);
+      h += '<div class="pie-tarjeta"><button class="btn" data-acc="atras" data-id="' + m.id + '">← Atrás</button></div>';
+    } else if (p.paso === 'terminus') {
+      var t = catTerminus();
+      h += '<div class="pregunta">¿Qué pagaste de Terminus?</div><div class="botones">' +
+        hijos(t.id).map(function (c) { return botonCat(m, c, c.nombre, 'aTerminus'); }).join('') + botonCat(m, t, 'Otros', 'aTerminus') + '</div>';
       h += '<div class="pie-tarjeta"><button class="btn" data-acc="atras" data-id="' + m.id + '">← Atrás</button></div>';
     } else if (p.paso === 'bolsas') {
       h += '<div class="pregunta">' + (md === 'entra' ? '¿De cuál de tus cuentas vino?' : '¿A cuál de tus cuentas fue?') + '</div>';
@@ -355,7 +410,7 @@
       var cambios = c.tipo === 'INGRESO'
         ? { tipo: 'INGRESO', bolsa_sale: null, bolsa_entra: m.bolsa_entra || m.bolsa_sale, categoria_id: catId }
         : { tipo: 'GASTO', bolsa_sale: m.bolsa_sale || m.bolsa_entra, bolsa_entra: null, categoria_id: catId };
-      var hecho = await resolver(m, cambios, c.nombre);
+      var hecho = await resolver(m, cambios, nombreCat(c));
       // ingreso de alguien conocido: la próxima vez se confirma solo
       if (hecho && c.tipo === 'INGRESO' && patronIngreso(m.comercio)) {
         try { await DB.guardarRegla(m.comercio, catId); } catch (e) { fallo(e); }
@@ -363,7 +418,7 @@
       return hecho;
     }
     if (md === 'compra') {
-      var r = await resolver(m, { categoria_id: catId }, c.nombre);
+      var r = await resolver(m, { categoria_id: catId }, nombreCat(c));
       if (!r || !m.comercio) return;
       // regla + las demás compras iguales pendientes
       try {
@@ -386,13 +441,25 @@
     if (!b) return;
     if (b.dataset.ir) { ir(b.dataset.ir); return; }
     if (b.dataset.cuadrar) { abrirCuadre(b.dataset.cuadrar); return; }
+    if (b.dataset.grupo) { S.abiertas[b.dataset.grupo] = !S.abiertas[b.dataset.grupo]; pintar(); return; }
     var acc = b.dataset.acc; if (!acc) return;
     var m = mov(b.dataset.id); if (!m) return;
-    if (acc === 'cat') return elegirCategoria(m, Number(b.dataset.cat));
+    if (acc === 'cat') {
+      var cc = cat(Number(b.dataset.cat));
+      if (!b.dataset.final && cc && hijos(cc.id).length) { S.pasos[m.id] = Object.assign(S.pasos[m.id] || {}, { madre: cc.id }); return repintarTarjeta(m.id); }
+      return elegirCategoria(m, Number(b.dataset.cat));
+    }
+    if (acc === 'sinMadre') { if (S.pasos[m.id]) delete S.pasos[m.id].madre; return repintarTarjeta(m.id); }
     if (acc === 'paso') { S.pasos[m.id] = { paso: b.dataset.paso, tipoCat: b.dataset.tipocat }; return repintarTarjeta(m.id); }
     if (acc === 'atras') { delete S.pasos[m.id]; return repintarTarjeta(m.id); }
     if (acc === 'efectivo') return resolver(m, {}, 'A tu efectivo');
-    if (acc === 'aTerminus') return resolver(m, { tipo: 'TRASPASO', bolsa_sale: m.bolsa_sale || m.bolsa_entra, bolsa_entra: 'TERMINUS', categoria_id: null }, 'Cargado a la cuenta con Terminus');
+    if (acc === 'aTerminus') {
+      // primero pregunta el concepto (nóminas, material…); sin conceptos en Supabase, se carga directo
+      if (!b.dataset.cat && catTerminus()) { S.pasos[m.id] = Object.assign(S.pasos[m.id] || {}, { paso: 'terminus' }); return repintarTarjeta(m.id); }
+      var ct = cat(Number(b.dataset.cat));
+      return resolver(m, { tipo: 'TRASPASO', bolsa_sale: m.bolsa_sale || m.bolsa_entra, bolsa_entra: 'TERMINUS', categoria_id: ct ? ct.id : null },
+        ct ? nombreCat(ct) + ' · a la cuenta con Terminus' : 'Cargado a la cuenta con Terminus');
+    }
     if (acc === 'deTerminus') return resolver(m, { tipo: 'TRASPASO', bolsa_sale: 'TERMINUS', bolsa_entra: m.bolsa_entra || m.bolsa_sale, categoria_id: null }, 'Registrado como dinero de Terminus');
     if (acc === 'aBolsa') return resolver(m, { tipo: 'TRASPASO', bolsa_sale: m.bolsa_sale, bolsa_entra: b.dataset.bolsa, categoria_id: null }, 'Traspaso registrado');
     if (acc === 'deBolsa') return resolver(m, { tipo: 'TRASPASO', bolsa_sale: b.dataset.bolsa, bolsa_entra: m.bolsa_entra, categoria_id: null }, 'Traspaso registrado');
@@ -431,7 +498,7 @@
       h += '<button class="fila ' + (vivo(m) ? '' : 'descartado') + '" data-editar="' + m.id + '"><div class="txt">' +
         '<div class="comercio">' + esc(titulo(m)) + '</div><div class="meta">' +
         (m.estado === 'POR_REVISAR' ? '<span class="chip revisar">por revisar</span>' : '') +
-        (c ? '<span class="chip">' + esc(c.nombre) + '</span>' : '') + esc(descripcionBolsas(m)) + '</div></div>' +
+        (c ? '<span class="chip">' + esc(nombreCat(c)) + '</span>' : '') + esc(descripcionBolsas(m)) + '</div></div>' +
         '<div class="num ' + l.clase + '">' + (m.tipo === 'GASTO' ? '−' : m.tipo === 'INGRESO' ? '+' : '') + dinero(m.monto) + '</div></button>';
     });
     $('#vista').innerHTML = h;
@@ -456,9 +523,14 @@
       return '<option value="' + b.id + '"' + (b.id === sel ? ' selected' : '') + '>' + esc(b.nombre) + '</option>';
     }).join('');
   }
+  // tipo: GASTO, INGRESO o TERMINUS (conceptos de lo que pagas por Terminus)
   function opcionesCat(tipo, sel) {
-    return '<option value="">Sin categoría</option>' + catsPorUso(tipo).map(function (c) {
-      return '<option value="' + c.id + '"' + (c.id === sel ? ' selected' : '') + '>' + esc(c.nombre) + '</option>';
+    function op(c, txt) { return '<option value="' + c.id + '"' + (c.id === sel ? ' selected' : '') + '>' + esc(txt) + '</option>'; }
+    var raices = tipo === 'TERMINUS' ? [catTerminus()].filter(Boolean) : catsPorUso(tipo);
+    return '<option value="">Sin categoría</option>' + raices.map(function (r) {
+      var hs = hijos(r.id);
+      if (!hs.length) return op(r, r.nombre);
+      return '<optgroup label="' + esc(r.nombre) + '">' + hs.map(function (c) { return op(c, c.nombre); }).join('') + op(r, r.nombre + ' · otros') + '</optgroup>';
     }).join('');
   }
 
@@ -482,18 +554,25 @@
       '<button class="btn" id="eCerrar">Cancelar</button></div></div>';
     hoja.hidden = false;
 
+    // qué categorías aplican: las de gasto, las de ingreso, o los conceptos de Terminus en un traspaso a Terminus
+    function modoEd() {
+      var t = $('#eTipo').value;
+      return t !== 'TRASPASO' ? t : ($('#eEntra').value === 'TERMINUS' && catTerminus() ? 'TERMINUS' : null);
+    }
     function ajustar() {
       var t = $('#eTipo').value;
       $('#cSale').style.display = t === 'INGRESO' ? 'none' : '';
       $('#cEntra').style.display = t === 'GASTO' ? 'none' : '';
-      $('#cCat').style.display = t === 'TRASPASO' ? 'none' : '';
-      var catSel = Number($('#eCat').value) || d.categoria_id;
-      var c = cat(catSel);
-      $('#eCat').innerHTML = opcionesCat(t === 'INGRESO' ? 'INGRESO' : 'GASTO', c && c.tipo === t ? catSel : null);
       if (t === 'INGRESO' && !$('#eEntra').value) $('#eEntra').value = d.bolsa_sale || 'ENLACE';
       if (t === 'GASTO' && !$('#eSale').value) $('#eSale').value = d.bolsa_entra || 'EFECTIVO';
+      var mc = modoEd();
+      $('#cCat').style.display = mc ? '' : 'none';
+      var catSel = Number($('#eCat').value) || d.categoria_id;
+      var c = cat(catSel);
+      $('#eCat').innerHTML = mc ? opcionesCat(mc, c && modoCat(c) === mc ? catSel : null) : '';
     }
     $('#eTipo').onchange = ajustar;
+    $('#eEntra').onchange = ajustar;
     ajustar();
     if (nuevo) setTimeout(function () { $('#eMonto').focus(); }, 50);
 
@@ -510,7 +589,7 @@
       var monto = Math.round(Number($('#eMonto').value) * 100) / 100;
       var sale = t === 'INGRESO' ? null : ($('#eSale').value || null);
       var entra = t === 'GASTO' ? null : ($('#eEntra').value || null);
-      var catId = t === 'TRASPASO' ? null : (Number($('#eCat').value) || null);
+      var catId = modoEd() ? (Number($('#eCat').value) || null) : null;
       var err = '';
       if (!(monto > 0)) err = 'Escribe un monto mayor a cero.';
       else if (!/^\d{4}-\d{2}-\d{2}$/.test($('#eFecha').value)) err = 'Falta la fecha.';

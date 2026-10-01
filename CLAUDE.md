@@ -29,6 +29,9 @@ con una bandeja para contestar lo que el sistema no sabe clasificar.
 
 2. **Supabase** (`https://jaologewhcbjuoinlusk.supabase.co`)
    - Tablas: `bolsas` (cuentas), `categorias`, `reglas` (patrón de comercio → categoría), `movimientos`. Vista `saldos`.
+   - `categorias.padre_id` = categoría madre (subcategorías; elegir la madre = "Otros"). `categorias.terminus` = conceptos
+     (Nóminas, Cajas chicas, Material) de lo que Maca paga por Terminus: van en el TRASPASO a la bolsa TERMINUS, no son gasto suyo.
+   - Cambios de estructura: archivos en `supabase/` (se corren a mano en el SQL Editor).
    - Bolsas: `EFECTIVO`, `ENLACE` (Banorte ****3123, la tarjeta de débito carga aquí), `INVERSION` (Banorte ****3918), `TERMINUS` (virtual: cuenta por cobrar/pagar con la empresa).
    - `movimientos`: `tipo` GASTO/INGRESO/TRASPASO · `estado` POR_REVISAR/CONFIRMADO/DESCARTADO ·
      `duda` CATEGORIA/EFECTIVO_O_PAGO/ORIGEN/DESTINO/CUENTA/DESCONOCIDO · `fuente` APP/CORREO/ATAJO · `llave` única (evita duplicados del correo).
@@ -67,6 +70,8 @@ con una bandeja para contestar lo que el sistema no sabe clasificar.
   Pushover con liga cuando lo dictado queda por revisar. Implementación "Atajo Gasto" versión 2. Atajo probado de punta a punta.
 - 30-sep-2026 · FP-LECTOR v1.5 y app web v1.3: "TRASPASO DE CTA : número" (depósito desde otra cuenta Banorte, p. ej. Airbnb)
   entra como INGRESO; al contestarlo con una categoría de ingreso la app guarda la regla y el siguiente se confirma solo. Categoría nueva "Airbnb".
+- 01-oct-2026 · App web v1.4: subcategorías (Personal, Casa, Salud) y conceptos de Terminus; en Inicio cada madre se abre con su
+  desglose y hay una sección "Pagaste por Terminus". SQL: `supabase/2026-10-01-subcategorias.sql`.
 
 ## Pendientes
 

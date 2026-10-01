@@ -83,6 +83,8 @@ nav#nav button.mas span { background: var(--esmeralda); color: #fff; width: 30px
 .barra-cat { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; margin: 8px 0; }
 .barra-cat .riel { grid-column: 1 / -1; height: 6px; background: var(--linea); border-radius: 3px; overflow: hidden; }
 .barra-cat .riel i { display: block; height: 100%; background: var(--zafiro); }
+.barra-cat.abre { width: 100%; background: none; border: 0; padding: 0; text-align: left; font: inherit; color: inherit; }
+.sub-cat { display: flex; justify-content: space-between; font-size: 13px; color: var(--suave); margin: 2px 0 6px 14px; }
 
 /* bandeja */
 .mov-cab { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
